@@ -1,10 +1,10 @@
-package com.jvtrmx.lil._poa_projetofinal_backend;
+package com._poadoacaolocalapp.doacaolocal_backend;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class ApplicationTests {
+class DoacaolocalBackendApplicationTests {
 
 	@Test
 	void contextLoads() {

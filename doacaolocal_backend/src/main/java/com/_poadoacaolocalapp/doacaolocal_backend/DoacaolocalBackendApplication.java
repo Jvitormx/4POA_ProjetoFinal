@@ -1,13 +1,13 @@
-package com.jvtrmx.lil._poa_projetofinal_backend;
+package com._poadoacaolocalapp.doacaolocal_backend;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class Application {
+public class DoacaolocalBackendApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.run(Application.class, args);
+		SpringApplication.run(DoacaolocalBackendApplication.class, args);
 	}
 
 }
