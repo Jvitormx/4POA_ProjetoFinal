@@ -1,1 +1,92 @@
-tudo tem que ser package e tudo dentro sao classes duh
+contexto do projeto
+
+# Dar e Receber — Contexto do Backend
+
+**Visão Geral**
+“Dar e Receber” é um backend Spring Boot + PostgreSQL para um marketplace de doações geolocalizado. Os usuários podem publicar **Publicações** do tipo **OFERTA** (itens que possuem) ou **PEDIDO** (itens que precisam). Correspondências entre ofertas e pedidos geram coletas ponto a ponto, com chat e avaliações.
+
+**Pilha de tecnologia**
+-Java 17, Spring Boot 3.x
+- Spring Data JPA (Hibernação)
+- Segurança Spring (JWT)
+- PostgreSQL (com tipos ENUM personalizados e índice geoespacial GIST)
+- Lombok para redução média
+
+**Esquema de banco de dados**
+- **usuários** (UUID PK, nome, email, hash_senha, eh_instituicao, latitude_padrao, longitude_padrao, raio_busca_km, timestamps)
+- **publicações** (UUID PK, tipo_publicacao ENUM, usuario_id → usuarios, titulo, descricao, categoria, quantidade, quantidade_original, inicio_coleta, fim_coleta, latitude, longitude, status_publicacao ENUM, permite_entrega, urgente, timestamps)
+- **correspondências** (UUID PK, oferta_id → publicacoes(tipo=OFERTA), pedido_id → publicacoes(tipo=PEDIDO), quantidade, status_match ENUM, timestamps)
+- **mensagens** (UUID PK, match_id → matches, remetente_id → usuários, conteudo, enviado_em)
+- **avaliacoes** (UUID PK, match_id → matches, avaliador_id → usuários, avaliado_id → usuários, nota 1–5, comentário, criado_em)
+
+**Enums (Java)**
+```java
+public enum TipoPublicacao { OFERTA, PEDIDO }
+public enum StatusPublicacao { ABERTA, EM_NEGOCIACAO, CONCLUIDA, CANCELADA }
+public enum StatusMatch { PENDENTE, CONFIRMADO, RECUSADO, CANCELADO }
+Estrutura do Pacote
+
+markdown
+Copiar
+Editar
+com.example.givereceive
+├─ entidade
+│ ├─ enums
+│ │ ├ TipoPublicacao.java
+│ │ ├ StatusPublicacao.java
+│ │ └ StatusMatch.java
+│ ├ Usuário.java
+│ ├ Publicacao.java
+│ ├ Match.java
+│ ├ Mensagem.java
+│ └ Avaliacao.java
+├─ repositório
+│ ├ UsuárioRepository.java
+│ ├ PublicacaoRepository.java
+│ ├ MatchRepository.java
+│ ├ MensagemRepository.java
+│ └ AvaliacaoRepository.java
+├─ serviço
+│ ├ Serviço de Usuário.java
+│ ├ Serviço de Publicação.java
+│ ├ Serviço de Correspondência.java
+│ ├ Serviço de Mensagem.java
+│ └ Serviço de Avaliacao.java
+├─ controlador
+│ ├ Controlador de Autenticação.java
+│ ├ Controlador de Usuário.java
+│ ├ Controlador de Publicação.java
+│ ├ Controlador de Correspondência.java
+│ ├ Controlador de Mensagem.java
+│ └ Controlador de Avaliacao.java
+└─ segurança
+├ Filtro de Autenticação Jwt.java
+├ Filtro de Autorização Jwt.java
+└ SecurityConfig.java
+Principais Recursos e Fluxos
+
+Aut.: Cadastro/login JWT
+
+CRUD de Publicações + correspondência geoespacial (Haversine ou PostGIS)
+
+Correspondências: criar, confirmar e decrementar quantidades automaticamente por meio de gatilhos
+
+Chat: endpoint WebSocket /ws/chat por correspondência
+
+Avaliações: 1 a 5 estrelas após a conclusão da correspondência
+
+Notificações: FCM / SMS opcional via Twilio
+
+Próximos Passos para Configuração do Backend
+
+Definir application.properties para PostgreSQL.
+
+Mapear enumerações e entidades em JPA.
+
+Criar repositórios e serviços/controladores básicos para Usuário e Publicação.
+
+Conectar a segurança JWT.
+
+Implementar lógica de correspondência na camada de serviço.
+
+Adicionar endpoints para correspondências, mensagens e classificações.
