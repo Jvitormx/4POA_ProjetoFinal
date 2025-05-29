@@ -73,8 +73,6 @@ Correspondências: criar, confirmar e decrementar quantidades automaticamente po
 
 Chat: endpoint WebSocket /ws/chat por correspondência
 
-Avaliações: 1 a 5 estrelas após a conclusão da correspondência
-
 Notificações: FCM / SMS opcional via Twilio
 
 Próximos Passos para Configuração do Backend
@@ -90,3 +88,157 @@ Conectar a segurança JWT.
 Implementar lógica de correspondência na camada de serviço.
 
 Adicionar endpoints para correspondências, mensagens e classificações.
+
+
+Decisões Tomadas e Melhorias Implementadas
+Unificação de Ofertas e Pedidos:
+
+Criada tabela publicacoes com campo tipo (OFERTA/PEDIDO)
+
+Mantidos campos específicos para cada tipo via constraints
+
+Redução de complexidade no código de matching
+
+Sistema de Matches Flexível:
+
+Permite três tipos de conexões:
+
+Oferta → Pedido (matching automático)
+
+Usuário → Oferta (solicitação tradicional)
+
+Usuário → Pedido (oferta direta para uma necessidade)
+
+Controle de Quantidade Aprimorado:
+
+Campo quantidade_original para cálculo de porcentagem atendida
+
+Validação bidirecional (oferta não pode exceder pedido e vice-versa)
+
+Status Mais Descritivos:
+
+Tipos específicos para publicações e matches
+
+Estados mais claros como EM_NEGOCIACAO
+
+Vinculação Direta de Mensagens/Avaliações:
+
+Agora relacionadas diretamente ao match
+
+Simplifica queries para histórico de conversas
+
+Otimizações Geoespaciais:
+
+Uso de GIST com ll_to_earth para buscas por proximidade
+
+Índices específicos para tipos de publicação
+
+Validações de Negócio:
+
+Garantia que ofertas têm período de coleta
+
+Pedidos não têm datas específicas
+
+Impede matches inválidos
+
+Fluxo de Dados Exemplo
+sql
+-- 1. Usuário cria oferta
+INSERT INTO publicacoes (tipo, usuario_id, titulo, quantidade, ..., tipo = 'OFERTA')
+VALUES ('OFERTA', 'user1', 'Arroz Integral', 10, ...);
+
+-- 2. Instituição cria pedido
+INSERT INTO publicacoes (tipo, usuario_id, titulo, quantidade, ..., tipo = 'PEDIDO')
+VALUES ('PEDIDO', 'user2', 'Precisamos de arroz', 8, ...);
+
+-- 3. Sistema encontra match (ou usuário inicia)
+INSERT INTO matches (oferta_id, pedido_id, quantidade, status)
+VALUES ('oferta1', 'pedido1', 5, 'CONFIRMADO');
+
+-- 4. Quantidades são atualizadas automaticamente
+-- Oferta: 10 → 5
+-- Pedido: 8 → 3
+
+-- 5. Mensagens são trocadas
+INSERT INTO mensagens (match_id, remetente_id, conteudo)
+VALUES ('match1', 'user1', 'Posso entregar na próxima terça');
+Este esquema mantém todas as funcionalidades essenciais da versão original enquanto adiciona flexibilidade para os novos requisitos, com melhor desempenho e consistência de dados.
+
+Lembrando, O Give & Receive+ é uma PWA (Progressive Web App) que conecta doadores e receptores de forma geo-localizada, facilitando a doação de itens físicos e recursos. O sistema implementa:
+
+Matching inteligente baseado em localização, categorias e disponibilidade
+
+Fluxo completo desde a publicação até a conclusão da doação
+
+Comunicação integrada via chat e notificações
+
+Lógica de Negócio e Regras
+1. Publicações (Ofertas/Pedidos)
+Tipos:
+
+OFERTA: Itens disponíveis para doação (ex: "10kg de arroz")
+
+PEDIDO: Necessidades específicas (ex: "Precisamos de 5kg de feijão")
+
+Regras:
+
+Ofertas devem ter período de coleta (inicio_coleta, fim_coleta)
+
+Pedidos podem ser marcados como urgente
+
+Quantidade é decrementada automaticamente via triggers
+
+Pacotes e Responsabilidades
+Pacote	Descrição
+config	-Configurações de segurança, WebSocket, CORS
+controller	-Endpoints REST (Auth, Publications, Matches, Messages)
+dto	-Objetos de transferência de dados (requests/responses)
+entity	-Modelos do banco de dados (JPA)
+repository	-Interfaces Spring Data JPA
+service	-Lógica de negócio (Matching, Notificações, Geocoding)
+exception	-Tratamento customizado de erros (404, 403, etc.)
+security	-Autenticação JWT, roles, filtros
+util	-Helpers (Geocoding, Cálculo de Distâncias)
+
+Passos de implementação
+
+Backend (Prioridade)
+
+Publicações
+
+CRUD completo
+
+Validação de geolocalização
+
+Matching
+
+Algoritmo básico
+
+Confirmação/recusa
+
+Notificações
+
+Integração com FCM
+
+Histórico de notificações
+
+Frontend (Fase 2)
+Autenticação
+
+Tela de login/registro
+
+Contexto de autenticação
+
+Feed Principal
+
+Listagem de publicações
+
+Filtros por categoria/distância
+
+Chat
+
+Interface básica de mensagens
+
+Notificações em tempo real
+
+Configuracoes de segurança Spring Security + JWT, Exception Handler Global podem ser deixadas por ultimo
