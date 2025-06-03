@@ -19,44 +19,49 @@ import jakarta.transaction.Transactional;
 public class MatchService {
     private final MatchRepository matchRepo;
     private final PublicacaoRepository pubRepo;
+    private final NotificacaoService notifier;
 
     public MatchService(MatchRepository matchRepo,
-                        PublicacaoRepository pubRepo) {
+                        PublicacaoRepository pubRepo,
+                        NotificacaoService notifier) {
         this.matchRepo = matchRepo;
         this.pubRepo = pubRepo;
+        this.notifier = notifier;
     }
 
-    /** Matching manual: usuário seleciona uma publicação e inicia um match */
     @Transactional
     public Match criarMatchManual(UUID publicacaoId, UUID solicitanteId, int quantidade) {
         Publicacao alvo = pubRepo.findById(publicacaoId)
             .orElseThrow(() -> new EntityNotFoundException("Publicação não existe"));
-        // monta o Match de acordo com o tipo da publicação
+
         Match m = new Match();
         if (alvo.getTipo() == TipoPublicacao.OFERTA) {
             m.setOferta(alvo);
+            // pedido ficará null; quem solicitou vira “pedido implícito”
         } else {
             m.setPedido(alvo);
         }
         m.setQuantidade(quantidade);
         m.setStatus(StatusMatch.PENDENTE);
-        return matchRepo.save(m);
+        Match salvo = matchRepo.save(m);
+
+        // Notifica o dono da publicação alvo
+        UUID dono = (alvo.getTipo() == TipoPublicacao.OFERTA
+                    ? alvo.getUsuario().getId()
+                    : alvo.getUsuario().getId());
+        notifier.notifyNewMatch(salvo.getId(), solicitanteId, dono);
+        return salvo;
     }
 
-    /** Confirma ou recusa um match (atualiza status e deixa os triggers do BD atualizarem quantidades) */
     @Transactional
     public Match atualizarStatus(UUID matchId, StatusMatch novoStatus) {
         Match m = matchRepo.findById(matchId)
                .orElseThrow(() -> new EntityNotFoundException("Match não encontrado"));
         m.setStatus(novoStatus);
-        return matchRepo.save(m);
+        Match salvo = matchRepo.save(m);
+        return salvo;
     }
 
-    /** Algoritmo de auto-match simplificado:
-     *  - Para uma nova oferta: busca pedidos abertos na mesma categoria
-     *  - Para um novo pedido: busca ofertas abertas...
-     *  - Cria matches confirmados até consumir totalmente uma das partes
-     */
     @Transactional
     public void autoMatch(Publicacao p) {
         TipoPublicacao meuTipo = p.getTipo();
@@ -64,7 +69,6 @@ public class MatchService {
                               ? TipoPublicacao.PEDIDO
                               : TipoPublicacao.OFERTA;
 
-        // 1) busca candidatas
         List<Publicacao> contrapartes = pubRepo.findNearby(
             alvo.name(),
             p.getLatitude(),
@@ -77,9 +81,9 @@ public class MatchService {
         int restante = p.getQuantidade();
         for (Publicacao contra : contrapartes) {
             if (restante <= 0) break;
-            int disponivel = contra.getQuantidade();
-            int qtd = Math.min(restante, disponivel);
-            // 2) cria match já confirmado
+            int dispo = contra.getQuantidade();
+            int qtd = Math.min(restante, dispo);
+
             Match m = new Match();
             if (meuTipo == TipoPublicacao.OFERTA) {
                 m.setOferta(p);
@@ -89,9 +93,19 @@ public class MatchService {
                 m.setOferta(contra);
             }
             m.setQuantidade(qtd);
-            m.setStatus(StatusMatch.CONFIRMADO);
-            matchRepo.save(m);
+            m.setStatus(StatusMatch.PENDENTE);  // agora aguardará confirmação
+            Match salvo = matchRepo.save(m);
+
+            // Notifica os dois usuários do match inteligente
+            notifier.notifyNewMatch(salvo.getId(),
+                                    p.getUsuario().getId(),
+                                    contra.getUsuario().getId());
+
             restante -= qtd;
         }
+    }
+
+    public List<Match> listAll() {
+        return matchRepo.findAll();
     }
 }
