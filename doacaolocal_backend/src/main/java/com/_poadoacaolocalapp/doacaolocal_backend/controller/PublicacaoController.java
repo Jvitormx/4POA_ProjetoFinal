@@ -25,10 +25,6 @@ public class PublicacaoController {
 
     private final PublicacaoService publicacaoService;
 
-    // Por enquanto, usuário hardcoded:
-    private static final UUID HARD_CODED_USER_ID =
-        UUID.fromString("11111111-1111-1111-1111-111111111111");
-
     public PublicacaoController(PublicacaoService publicacaoService) {
         this.publicacaoService = publicacaoService;
     }
@@ -36,10 +32,11 @@ public class PublicacaoController {
     /** Cria uma nova oferta ou pedido */
     @PostMapping
     public ResponseEntity<Publicacao> criar(
+        @RequestParam("usuarioId") UUID usuarioId,
         @Valid @RequestBody CreatePublicacaoDto dto
     ) {
         Publicacao criada = publicacaoService.criarPublicacao(
-            HARD_CODED_USER_ID,
+            usuarioId,
             dto
         );
         return ResponseEntity
@@ -50,10 +47,11 @@ public class PublicacaoController {
     /** Retorna o feed de publicações próximas do tipo oposto ao informado */
     @GetMapping("/feed")
     public ResponseEntity<List<Publicacao>> feed(
+        @RequestParam("usuarioId") UUID usuarioId,
         @RequestParam("tipo") TipoPublicacao meuTipo
     ) {
         List<Publicacao> feed = publicacaoService.listarFeed(
-            HARD_CODED_USER_ID,
+            usuarioId,
             meuTipo
         );
         return ResponseEntity.ok(feed);
