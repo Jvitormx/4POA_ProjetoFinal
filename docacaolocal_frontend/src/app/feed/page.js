@@ -1,3 +1,16 @@
+"use client";
+import { useEffect, useState } from "react";
+
+export default function Feed() {
+  const [usuario, setUsuario] = useState(null);
+
+  useEffect(() => {
+    const userStr = localStorage.getItem("usuario");
+    if (userStr) {
+      setUsuario(JSON.parse(userStr));
+    }
+  }, []);}
+
 export default function Feed() {
     return (
         <div className="flex min-h-screen items-center justify-center bg-gray-100">
