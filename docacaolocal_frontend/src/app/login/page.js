@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { fetchApi } from "@/service/api"; // ajuste o path se necessário
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -10,21 +11,14 @@ export default function Login() {
     e.preventDefault();
     setErro("");
     try {
-      const res = await fetch("http://localhost:8080/api/auth/login", {
+      const usuario = await fetchApi("/api/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, senha }),
       });
-      if (!res.ok) {
-        throw new Error("Usuário ou senha inválidos");
-      }
-      const usuario = await res.json();
-      // Salve o usuário no localStorage ou contexto, se desejar
       localStorage.setItem("usuario", JSON.stringify(usuario));
-      // Redirecione para o feed
       window.location.href = "/feed";
     } catch (err) {
-      setErro(err.message);
+      setErro("Usuário ou senha inválidos");
     }
   }
 
