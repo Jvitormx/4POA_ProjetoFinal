@@ -16,7 +16,7 @@ export default function Login() {
         body: JSON.stringify({ email, senha }),
       });
       localStorage.setItem("usuario", JSON.stringify(usuario));
-      window.location.href = "/feed";
+      window.location.href = "/app/feed";
     } catch (err) {
       setErro("Usuário ou senha inválidos");
     }
