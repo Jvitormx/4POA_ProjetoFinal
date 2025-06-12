@@ -13,11 +13,11 @@ export default function FeedFilters({ tipo, setTipo }) {
       </button>
       <button
         className={`px-4 py-2 rounded-r-full ${
-          tipo === "SOLICITACAO"
+          tipo === "PEDIDO"
             ? "bg-[#5899e2] text-white"
             : "bg-[#65afff] text-[#1b2845] border border-[#5899e2]"
         }`}
-        onClick={() => setTipo("SOLICITACAO")}
+        onClick={() => setTipo("PEDIDO")}
       >
         Solicitações
       </button>

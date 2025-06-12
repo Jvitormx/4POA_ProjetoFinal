@@ -8,5 +8,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import com._poadoacaolocalapp.doacaolocal_backend.entity.Mensagem;
 
 public interface MensagemRepository extends JpaRepository<Mensagem, UUID> {
-    List<Mensagem> findByMatchIdOrderByIdAsc(UUID matchId);
+    List<Mensagem> findByMatchIdOrderByEnviadoEmAsc(UUID matchId);
 }

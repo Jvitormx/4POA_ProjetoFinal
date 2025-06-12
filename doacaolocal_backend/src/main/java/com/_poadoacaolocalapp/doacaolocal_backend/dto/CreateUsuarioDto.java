@@ -20,7 +20,11 @@ public class CreateUsuarioDto {
     @Size(min = 6)
     private String senha;
 
+    private String fotoPerfilUrl; // Novo campo
+
     private final Boolean ehInstituicao = false;
+
+    private String descricao;
 
     // Getters e setters...
 
@@ -29,7 +33,49 @@ public class CreateUsuarioDto {
         usuario.setNome(this.nome);
         usuario.setEmail(this.email);
         usuario.setEhInstituicao(this.ehInstituicao);
+        usuario.setFotoPerfilUrl(this.fotoPerfilUrl); // Novo campo
         usuario.setHashSenha(new BCryptPasswordEncoder().encode(this.senha));
+        usuario.setDescricao(this.descricao);
         return usuario;
+    }
+
+    public String getNome() {
+        return nome;
+    }
+
+    public void setNome(String nome) {
+        this.nome = nome;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public String getSenha() {
+        return senha;
+    }
+
+    public void setSenha(String senha) {
+        this.senha = senha;
+    }
+
+    public String getFotoPerfilUrl() {
+        return fotoPerfilUrl;
+    }
+
+    public void setFotoPerfilUrl(String fotoPerfilUrl) {
+        this.fotoPerfilUrl = fotoPerfilUrl;
+    }
+
+    public String getDescricao() {
+        return descricao;
+    }
+
+    public void setDescricao(String descricao) {
+        this.descricao = descricao;
     }
 }

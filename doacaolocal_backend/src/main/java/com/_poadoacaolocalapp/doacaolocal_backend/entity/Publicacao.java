@@ -3,13 +3,8 @@ package com._poadoacaolocalapp.doacaolocal_backend.entity;
 import java.time.ZonedDateTime;
 import java.util.UUID;
 
-import com._poadoacaolocalapp.doacaolocal_backend.entity.enums.StatusPublicacao;
-import com._poadoacaolocalapp.doacaolocal_backend.entity.enums.TipoPublicacao;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
@@ -34,9 +29,13 @@ public class Publicacao {
     @GeneratedValue
     private UUID id;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "tipo", nullable = false)
+    @ManyToOne
+    @JoinColumn(name = "tipo_id", nullable = false)
     private TipoPublicacao tipo;
+
+    @ManyToOne
+    @JoinColumn(name = "status_id", nullable = false)
+    private StatusPublicacao status;
 
     @ManyToOne
     @JoinColumn(name = "usuario_id", nullable = false)
@@ -68,10 +67,6 @@ public class Publicacao {
 
     @Column(nullable = false)
     private Double longitude;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
-    private StatusPublicacao status;
 
     @Builder.Default
     @Column(name = "permite_entrega", nullable = false)

@@ -3,12 +3,8 @@ package com._poadoacaolocalapp.doacaolocal_backend.entity;
 import java.time.ZonedDateTime;
 import java.util.UUID;
 
-import com._poadoacaolocalapp.doacaolocal_backend.entity.enums.StatusMatch;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
@@ -34,18 +30,18 @@ public class Match {
     private UUID id;
 
     @ManyToOne
-    @JoinColumn(name = "oferta_id")
-    private Publicacao oferta;
+    @JoinColumn(name = "publicacao_id", nullable = false)
+    private Publicacao publicacao;
 
     @ManyToOne
-    @JoinColumn(name = "pedido_id")
-    private Publicacao pedido;
+    @JoinColumn(name = "usuario_id", nullable = false)
+    private Usuario usuario; // solicitante
 
     @Column(nullable = false)
     private int quantidade;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
+    @ManyToOne
+    @JoinColumn(name = "status_id", nullable = false)
     private StatusMatch status;
 
     @Builder.Default

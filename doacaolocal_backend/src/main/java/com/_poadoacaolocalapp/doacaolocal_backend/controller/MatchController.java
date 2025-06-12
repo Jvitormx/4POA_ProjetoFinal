@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com._poadoacaolocalapp.doacaolocal_backend.dto.CreateMatchDto;
 import com._poadoacaolocalapp.doacaolocal_backend.entity.Match;
-import com._poadoacaolocalapp.doacaolocal_backend.entity.enums.StatusMatch;
 import com._poadoacaolocalapp.doacaolocal_backend.service.MatchService;
 
 import jakarta.validation.Valid;
@@ -24,10 +23,6 @@ import jakarta.validation.Valid;
 public class MatchController {
 
     private final MatchService matchService;
-
-    // Mesmo usuário hardcoded para solicitante
-    private static final UUID HARD_CODED_USER_ID =
-        UUID.fromString("11111111-1111-1111-1111-111111111111");
 
     public MatchController(MatchService matchService) {
         this.matchService = matchService;
@@ -40,7 +35,7 @@ public class MatchController {
     ) {
         Match m = matchService.criarMatchManual(
             dto.getPublicacaoId(),
-            HARD_CODED_USER_ID,
+            dto.getSolicitanteId(), 
             dto.getQuantidade()
         );
         return ResponseEntity.ok(m);
@@ -50,7 +45,7 @@ public class MatchController {
     @PostMapping("/{id}/status")
     public ResponseEntity<Match> atualizaStatus(
         @PathVariable("id") UUID matchId,
-        @RequestParam("status") StatusMatch novoStatus
+        @RequestParam("status") String novoStatus // Agora recebe o nome do status como String
     ) {
         Match atualizado = matchService.atualizarStatus(matchId, novoStatus);
         return ResponseEntity.ok(atualizado);
@@ -59,7 +54,14 @@ public class MatchController {
     /** Lista todos os matches (útil para testes) */
     @GetMapping
     public ResponseEntity<List<Match>> listarTodos() {
-        List<Match> lista = matchService.listAll(); // implemente este método no service
+        List<Match> lista = matchService.listAll();
         return ResponseEntity.ok(lista);
+    }
+
+    /** Lista os matches de um usuário específico */
+    @GetMapping("/usuario/{usuarioId}")
+    public ResponseEntity<List<Match>> listarPorUsuario(@PathVariable UUID usuarioId) {
+        List<Match> matches = matchService.listarPorUsuario(usuarioId);
+        return ResponseEntity.ok(matches);
     }
 }

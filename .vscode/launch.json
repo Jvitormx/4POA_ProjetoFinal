@@ -2,6 +2,20 @@
     "configurations": [
         {
             "type": "java",
+            "name": "GerarHashSenha",
+            "request": "launch",
+            "mainClass": "com._poadoacaolocalapp.doacaolocal_backend.config.GerarHashSenha",
+            "projectName": "doacaolocal_backend"
+        },
+        {
+            "type": "java",
+            "name": "DoacaolocalBackendApplication",
+            "request": "launch",
+            "mainClass": "com._poadoacaolocalapp.doacaolocal_backend.DoacaolocalBackendApplication",
+            "projectName": "doacaolocal_backend"
+        },
+        {
+            "type": "java",
             "name": "Spring Boot-Application<4poa_projetofinal_backend>",
             "request": "launch",
             "cwd": "${workspaceFolder}",

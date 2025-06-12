@@ -7,10 +7,14 @@ import org.springframework.stereotype.Service;
 
 import com._poadoacaolocalapp.doacaolocal_backend.entity.Match;
 import com._poadoacaolocalapp.doacaolocal_backend.entity.Publicacao;
-import com._poadoacaolocalapp.doacaolocal_backend.entity.enums.StatusMatch;
-import com._poadoacaolocalapp.doacaolocal_backend.entity.enums.TipoPublicacao;
+import com._poadoacaolocalapp.doacaolocal_backend.entity.StatusMatch;
+import com._poadoacaolocalapp.doacaolocal_backend.entity.TipoPublicacao;
+import com._poadoacaolocalapp.doacaolocal_backend.entity.Usuario;
 import com._poadoacaolocalapp.doacaolocal_backend.repository.MatchRepository;
 import com._poadoacaolocalapp.doacaolocal_backend.repository.PublicacaoRepository;
+import com._poadoacaolocalapp.doacaolocal_backend.repository.StatusMatchRepository;
+import com._poadoacaolocalapp.doacaolocal_backend.repository.TipoPublicacaoRepository;
+import com._poadoacaolocalapp.doacaolocal_backend.repository.UsuarioRepository;
 
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
@@ -20,92 +24,84 @@ public class MatchService {
     private final MatchRepository matchRepo;
     private final PublicacaoRepository pubRepo;
     private final NotificacaoService notifier;
+    private final StatusMatchRepository statusMatchRepo;
+    private final TipoPublicacaoRepository tipoPublicacaoRepo;
+    private final UsuarioRepository userRepo;
 
-    public MatchService(MatchRepository matchRepo,
-                        PublicacaoRepository pubRepo,
-                        NotificacaoService notifier) {
+    public MatchService(
+            MatchRepository matchRepo,
+            PublicacaoRepository pubRepo,
+            NotificacaoService notifier,
+            StatusMatchRepository statusMatchRepo,
+            TipoPublicacaoRepository tipoPublicacaoRepo,
+            UsuarioRepository userRepo) {
         this.matchRepo = matchRepo;
         this.pubRepo = pubRepo;
         this.notifier = notifier;
+        this.statusMatchRepo = statusMatchRepo;
+        this.tipoPublicacaoRepo = tipoPublicacaoRepo;
+        this.userRepo = userRepo;
     }
 
     @Transactional
     public Match criarMatchManual(UUID publicacaoId, UUID solicitanteId, int quantidade) {
-        Publicacao alvo = pubRepo.findById(publicacaoId)
-            .orElseThrow(() -> new EntityNotFoundException("Publicação não existe"));
+        Publicacao pub = pubRepo.findById(publicacaoId)
+                .orElseThrow(() -> new EntityNotFoundException("Publicação não existe"));
+        Usuario solicitante = userRepo.findById(solicitanteId)
+                .orElseThrow(() -> new EntityNotFoundException("Usuário não existe"));
 
         Match m = new Match();
-        if (alvo.getTipo() == TipoPublicacao.OFERTA) {
-            m.setOferta(alvo);
-            // pedido ficará null; quem solicitou vira “pedido implícito”
-        } else {
-            m.setPedido(alvo);
-        }
+        m.setPublicacao(pub);
+        m.setUsuario(solicitante);
         m.setQuantidade(quantidade);
-        m.setStatus(StatusMatch.PENDENTE);
+
+        StatusMatch pendente = statusMatchRepo.findByNome("PENDENTE")
+                .orElseThrow(() -> new IllegalArgumentException("StatusMatch PENDENTE não encontrado"));
+        m.setStatus(pendente);
+
         Match salvo = matchRepo.save(m);
 
-        // Notifica o dono da publicação alvo
-        UUID dono = (alvo.getTipo() == TipoPublicacao.OFERTA
-                    ? alvo.getUsuario().getId()
-                    : alvo.getUsuario().getId());
-        notifier.notifyNewMatch(salvo.getId(), solicitanteId, dono);
+        notifier.notifyNewMatch(salvo.getId(), solicitanteId, pub.getUsuario().getId());
         return salvo;
     }
 
     @Transactional
-    public Match atualizarStatus(UUID matchId, StatusMatch novoStatus) {
+    public Match atualizarStatus(UUID matchId, String novoStatusNome) {
         Match m = matchRepo.findById(matchId)
-               .orElseThrow(() -> new EntityNotFoundException("Match não encontrado"));
+                .orElseThrow(() -> new EntityNotFoundException("Match não encontrado"));
+        StatusMatch novoStatus = statusMatchRepo.findByNome(novoStatusNome)
+                .orElseThrow(() -> new IllegalArgumentException("StatusMatch não encontrado: " + novoStatusNome));
         m.setStatus(novoStatus);
-        Match salvo = matchRepo.save(m);
-        return salvo;
+        return matchRepo.save(m);
     }
 
     @Transactional
     public void autoMatch(Publicacao p) {
-        TipoPublicacao meuTipo = p.getTipo();
-        TipoPublicacao alvo = (meuTipo == TipoPublicacao.OFERTA)
-                              ? TipoPublicacao.PEDIDO
-                              : TipoPublicacao.OFERTA;
+        String meuTipoNome = p.getTipo().getNome();
+        String alvoNome = "OFERTA".equalsIgnoreCase(meuTipoNome) ? "PEDIDO" : "OFERTA";
+        TipoPublicacao alvoTipo = tipoPublicacaoRepo.findByNome(alvoNome)
+                .orElseThrow(() -> new IllegalArgumentException("Tipo de publicação não encontrado: " + alvoNome));
 
         List<Publicacao> contrapartes = pubRepo.findNearby(
-            alvo.name(),
-            p.getLatitude(),
-            p.getLongitude(),
-            p.getUsuario().getRaioBuscaKm()
-        ).stream()
-         .filter(o -> o.getCategoria().equalsIgnoreCase(p.getCategoria()))
-         .toList();
+                alvoTipo.getId(),
+                p.getLatitude(),
+                p.getLongitude(),
+                p.getUsuario().getRaioBuscaKm()).stream()
+                .filter(o -> o.getCategoria().equalsIgnoreCase(p.getCategoria()))
+                .toList();
 
-        int restante = p.getQuantidade();
         for (Publicacao contra : contrapartes) {
-            if (restante <= 0) break;
-            int dispo = contra.getQuantidade();
-            int qtd = Math.min(restante, dispo);
-
-            Match m = new Match();
-            if (meuTipo == TipoPublicacao.OFERTA) {
-                m.setOferta(p);
-                m.setPedido(contra);
-            } else {
-                m.setPedido(p);
-                m.setOferta(contra);
-            }
-            m.setQuantidade(qtd);
-            m.setStatus(StatusMatch.PENDENTE);  // agora aguardará confirmação
-            Match salvo = matchRepo.save(m);
-
-            // Notifica os dois usuários do match inteligente
-            notifier.notifyNewMatch(salvo.getId(),
-                                    p.getUsuario().getId(),
-                                    contra.getUsuario().getId());
-
-            restante -= qtd;
+            notifier.notifyNewMatchSuggestion(
+                    p.getId(), p.getUsuario().getId(),
+                    contra.getId(), contra.getUsuario().getId());
         }
     }
 
     public List<Match> listAll() {
         return matchRepo.findAll();
+    }
+
+    public List<Match> listarPorUsuario(UUID usuarioId) {
+        return matchRepo.findByUsuarioEnvolvido(usuarioId);
     }
 }

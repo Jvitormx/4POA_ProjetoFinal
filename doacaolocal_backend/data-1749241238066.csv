@@ -1,0 +1,2 @@
+"id","tipo_id","usuario_id","titulo","descricao","categoria","quantidade","quantidade_original","inicio_coleta","fim_coleta","latitude","longitude","status_id","permite_entrega","urgente","criado_em","atualizado_em"
+"97f2488b-e7b7-4da9-883e-d51d57499ced",1,"22222222-2222-2222-2222-222222222222","Teste","TesteTeste","Testes",1,1,"2025-06-05 17:08:00-03","2025-07-06 17:08:00-03","-22.889143670478962","-43.28229188919068",1,True,True,"2025-06-06 17:09:08.617223-03","2025-06-06 17:09:08.617229-03"

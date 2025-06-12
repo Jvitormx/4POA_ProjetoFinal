@@ -1,7 +1,23 @@
--- Tipos customizados para melhor semântica
-CREATE TYPE tipo_publicacao AS ENUM ('OFERTA', 'PEDIDO');
-CREATE TYPE status_publicacao AS ENUM ('ABERTA', 'EM_NEGOCIACAO', 'CONCLUIDA', 'CANCELADA');
-CREATE TYPE status_match AS ENUM ('PENDENTE', 'CONFIRMADO', 'RECUSADO', 'CANCELADO');
+-- Tabelas de domínio
+CREATE TABLE tipo_publicacao (
+  id SERIAL PRIMARY KEY,
+  nome VARCHAR(20) NOT NULL UNIQUE
+);
+
+CREATE TABLE status_publicacao (
+  id SERIAL PRIMARY KEY,
+  nome VARCHAR(30) NOT NULL UNIQUE
+);
+
+CREATE TABLE status_match (
+  id SERIAL PRIMARY KEY,
+  nome VARCHAR(30) NOT NULL UNIQUE
+);
+
+-- Popule as tabelas de domínio
+INSERT INTO tipo_publicacao (nome) VALUES ('OFERTA'), ('PEDIDO');
+INSERT INTO status_publicacao (nome) VALUES ('ABERTA'), ('EM_NEGOCIACAO'), ('CONCLUIDA'), ('CANCELADA');
+INSERT INTO status_match (nome) VALUES ('PENDENTE'), ('CONFIRMADO'), ('RECUSADO'), ('CANCELADO');
 
 -- Tabela de Usuários
 CREATE TABLE usuarios (
@@ -21,53 +37,46 @@ CREATE TABLE usuarios (
 -- Tabela unificada de Publicações (ofertas + pedidos)
 CREATE TABLE publicacoes (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tipo            tipo_publicacao NOT NULL,
+  tipo_id         INTEGER NOT NULL REFERENCES tipo_publicacao(id),
   usuario_id      UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
   titulo          VARCHAR(150) NOT NULL,
   descricao       TEXT,
   categoria       VARCHAR(50) NOT NULL,
   quantidade      INTEGER NOT NULL DEFAULT 1 CHECK (quantidade >= 0),
-  quantidade_original INTEGER NOT NULL, -- Para cálculo de porcentagem atendida
+  quantidade_original INTEGER NOT NULL,
   inicio_coleta   TIMESTAMP WITH TIME ZONE,
   fim_coleta      TIMESTAMP WITH TIME ZONE,
   latitude        DOUBLE PRECISION NOT NULL,
   longitude       DOUBLE PRECISION NOT NULL,
-  status          status_publicacao NOT NULL,
+  status_id       INTEGER NOT NULL REFERENCES status_publicacao(id),
   permite_entrega BOOLEAN DEFAULT FALSE,
-  urgente         BOOLEAN DEFAULT FALSE, -- Para pedidos prioritários
+  urgente         BOOLEAN DEFAULT FALSE,
   criado_em       TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
   atualizado_em   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
   CONSTRAINT check_dates CHECK (
-    (tipo = 'OFERTA' AND inicio_coleta IS NOT NULL AND fim_coleta IS NOT NULL) OR
-    (tipo = 'PEDIDO' AND inicio_coleta IS NULL AND fim_coleta IS NULL)
+    ((tipo_id = 1) AND inicio_coleta IS NOT NULL AND fim_coleta IS NOT NULL) OR
+    ((tipo_id = 2) AND inicio_coleta IS NULL AND fim_coleta IS NULL)
   )
 );
 
--- Tabela de Matches (CORRIGIDA: sem CHECK constraints com subconsultas)
+-- Tabela de Matches
 CREATE TABLE matches (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  oferta_id       UUID REFERENCES publicacoes(id), -- Validação de tipo será feita por trigger
-  pedido_id       UUID REFERENCES publicacoes(id), -- Validação de tipo será feita por trigger
+  publicacao_id   UUID NOT NULL REFERENCES publicacoes(id),
+  usuario_id      UUID NOT NULL REFERENCES usuarios(id),
   quantidade      INTEGER NOT NULL CHECK (quantidade > 0),
-  status          status_match NOT NULL,
+  status_id       INTEGER NOT NULL REFERENCES status_match(id),
   criado_em       TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-  atualizado_em   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-  CONSTRAINT valid_match CHECK (
-    (oferta_id IS NOT NULL AND pedido_id IS NULL) OR -- Oferta direta
-    (oferta_id IS NULL AND pedido_id IS NOT NULL) OR -- Pedido direto
-    (oferta_id IS NOT NULL AND pedido_id IS NOT NULL) -- Matching automático
-  )
+  atualizado_em   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
--- Tabela de Mensagens (agora vinculada a matches)
+-- Tabela de Mensagens
 CREATE TABLE mensagens (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   match_id        UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
   remetente_id    UUID NOT NULL REFERENCES usuarios(id) ON DELETE SET NULL,
   conteudo        TEXT NOT NULL,
   enviado_em      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
-  -- Se quiser um campo atualizado_em aqui, adicione:
-  -- atualizado_em   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
 -- Índices geoespaciais
@@ -76,8 +85,8 @@ CREATE INDEX idx_publicacoes_geo ON publicacoes USING GIST (
 );
 
 -- Índices para buscas comuns
-CREATE INDEX idx_publicacoes_tipo_status ON publicacoes (tipo, status);
-CREATE INDEX idx_matches_status ON matches (status);
+CREATE INDEX idx_publicacoes_tipo_status ON publicacoes (tipo_id, status_id);
+CREATE INDEX idx_matches_status ON matches (status_id);
 CREATE INDEX idx_mensagens_match ON mensagens (match_id);
 
 -- Função para Atualização de timestamps
@@ -94,37 +103,21 @@ CREATE OR REPLACE FUNCTION atualizar_quantidades()
 RETURNS TRIGGER AS $$
 BEGIN
   -- Atualização na confirmação de match
-  IF (TG_OP = 'INSERT' AND NEW.status = 'CONFIRMADO') OR
-     (TG_OP = 'UPDATE' AND OLD.status != 'CONFIRMADO' AND NEW.status = 'CONFIRMADO') THEN
+  IF (TG_OP = 'INSERT' AND NEW.status_id = (SELECT id FROM status_match WHERE nome = 'CONFIRMADO')) OR
+     (TG_OP = 'UPDATE' AND OLD.status_id != (SELECT id FROM status_match WHERE nome = 'CONFIRMADO') AND NEW.status_id = (SELECT id FROM status_match WHERE nome = 'CONFIRMADO')) THEN
 
-    IF NEW.oferta_id IS NOT NULL THEN
-      UPDATE publicacoes
-      SET quantidade = quantidade - NEW.quantidade
-      WHERE id = NEW.oferta_id;
-    END IF;
-
-    IF NEW.pedido_id IS NOT NULL THEN
-      UPDATE publicacoes
-      SET quantidade = quantidade - NEW.quantidade
-      WHERE id = NEW.pedido_id;
-    END IF;
+    UPDATE publicacoes
+    SET quantidade = quantidade - NEW.quantidade
+    WHERE id = NEW.publicacao_id;
   END IF;
 
   -- Devolução de quantidade em cancelamentos ou recusas de matches previamente confirmados
-  IF (TG_OP = 'UPDATE' AND OLD.status = 'CONFIRMADO' AND (NEW.status = 'CANCELADO' OR NEW.status = 'RECUSADO')) OR
-     (TG_OP = 'DELETE' AND OLD.status = 'CONFIRMADO') THEN
+  IF (TG_OP = 'UPDATE' AND OLD.status_id = (SELECT id FROM status_match WHERE nome = 'CONFIRMADO') AND (NEW.status_id = (SELECT id FROM status_match WHERE nome = 'CANCELADO') OR NEW.status_id = (SELECT id FROM status_match WHERE nome = 'RECUSADO'))) OR
+     (TG_OP = 'DELETE' AND OLD.status_id = (SELECT id FROM status_match WHERE nome = 'CONFIRMADO')) THEN
 
-    IF OLD.oferta_id IS NOT NULL THEN
-      UPDATE publicacoes
-      SET quantidade = quantidade + OLD.quantidade
-      WHERE id = OLD.oferta_id;
-    END IF;
-
-    IF OLD.pedido_id IS NOT NULL THEN
-      UPDATE publicacoes
-      SET quantidade = quantidade + OLD.quantidade
-      WHERE id = OLD.pedido_id;
-    END IF;
+    UPDATE publicacoes
+    SET quantidade = quantidade + OLD.quantidade
+    WHERE id = OLD.publicacao_id;
   END IF;
 
   IF TG_OP = 'DELETE' THEN
@@ -138,23 +131,27 @@ $$ LANGUAGE plpgsql;
 -- Função para Verificação de status das publicações
 CREATE OR REPLACE FUNCTION verificar_status_publicacao()
 RETURNS TRIGGER AS $$
+DECLARE
+  tipo_nome VARCHAR(20);
 BEGIN
+  SELECT nome INTO tipo_nome FROM tipo_publicacao WHERE id = NEW.tipo_id;
+
   -- Para ofertas
-  IF NEW.tipo = 'OFERTA' THEN
+  IF tipo_nome = 'OFERTA' THEN
     IF NEW.quantidade <= 0 THEN
-      NEW.status := 'CONCLUIDA';
-    ELSIF NEW.fim_coleta < NOW() AND NEW.status != 'CONCLUIDA' THEN
-      NEW.status := 'CANCELADA';
-    ELSIF NEW.status NOT IN ('EM_NEGOCIACAO', 'CONCLUIDA', 'CANCELADA') THEN
-      NEW.status := 'ABERTA';
+      NEW.status_id := (SELECT id FROM status_publicacao WHERE nome = 'CONCLUIDA');
+    ELSIF NEW.fim_coleta < NOW() AND NEW.status_id != (SELECT id FROM status_publicacao WHERE nome = 'CONCLUIDA') THEN
+      NEW.status_id := (SELECT id FROM status_publicacao WHERE nome = 'CANCELADA');
+    ELSIF NEW.status_id NOT IN ((SELECT id FROM status_publicacao WHERE nome = 'EM_NEGOCIACAO'), (SELECT id FROM status_publicacao WHERE nome = 'CONCLUIDA'), (SELECT id FROM status_publicacao WHERE nome = 'CANCELADA')) THEN
+      NEW.status_id := (SELECT id FROM status_publicacao WHERE nome = 'ABERTA');
     END IF;
 
   -- Para pedidos
-  ELSE -- tipo = 'PEDIDO'
+  ELSE -- tipo_nome = 'PEDIDO'
     IF NEW.quantidade <= 0 THEN
-      NEW.status := 'CONCLUIDA';
-    ELSIF NEW.status NOT IN ('EM_NEGOCIACAO', 'CONCLUIDA', 'CANCELADA') THEN
-      NEW.status := 'ABERTA';
+      NEW.status_id := (SELECT id FROM status_publicacao WHERE nome = 'CONCLUIDA');
+    ELSIF NEW.status_id NOT IN ((SELECT id FROM status_publicacao WHERE nome = 'EM_NEGOCIACAO'), (SELECT id FROM status_publicacao WHERE nome = 'CONCLUIDA'), (SELECT id FROM status_publicacao WHERE nome = 'CANCELADA')) THEN
+      NEW.status_id := (SELECT id FROM status_publicacao WHERE nome = 'ABERTA');
     END IF;
   END IF;
 
@@ -166,35 +163,18 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION validar_quantidade_match()
 RETURNS TRIGGER AS $$
 DECLARE
-  disponivel_oferta INTEGER;
-  disponivel_pedido INTEGER;
-  status_oferta_atual status_publicacao;
-  status_pedido_atual status_publicacao;
+  disponivel INTEGER;
+  status_atual_id INTEGER;
 BEGIN
-  IF NEW.oferta_id IS NOT NULL THEN
-    SELECT quantidade, status INTO disponivel_oferta, status_oferta_atual
-    FROM publicacoes WHERE id = NEW.oferta_id;
+  SELECT quantidade, status_id INTO disponivel, status_atual_id
+  FROM publicacoes WHERE id = NEW.publicacao_id;
 
-    IF status_oferta_atual NOT IN ('ABERTA', 'EM_NEGOCIACAO') THEN
-        RAISE EXCEPTION 'A oferta não está disponível para novos matches (status: %)', status_oferta_atual;
-    END IF;
-
-    IF NEW.quantidade > disponivel_oferta THEN
-      RAISE EXCEPTION 'Quantidade solicitada (% unidades) excede o disponível na oferta (% unidades)', NEW.quantidade, disponivel_oferta;
-    END IF;
+  IF status_atual_id NOT IN ((SELECT id FROM status_publicacao WHERE nome = 'ABERTA'), (SELECT id FROM status_publicacao WHERE nome = 'EM_NEGOCIACAO')) THEN
+      RAISE EXCEPTION 'A publicação não está disponível para novos matches (status_id: %)', status_atual_id;
   END IF;
 
-  IF NEW.pedido_id IS NOT NULL THEN
-    SELECT quantidade, status INTO disponivel_pedido, status_pedido_atual
-    FROM publicacoes WHERE id = NEW.pedido_id;
-
-    IF status_pedido_atual NOT IN ('ABERTA', 'EM_NEGOCIACAO') THEN
-        RAISE EXCEPTION 'O pedido não está disponível para novos matches (status: %)', status_pedido_atual;
-    END IF;
-
-    IF NEW.quantidade > disponivel_pedido THEN
-      RAISE EXCEPTION 'Quantidade ofertada (% unidades) excede o necessário no pedido (% unidades)', NEW.quantidade, disponivel_pedido;
-    END IF;
+  IF NEW.quantidade > disponivel THEN
+    RAISE EXCEPTION 'Quantidade solicitada (% unidades) excede o disponível na publicação (% unidades)', NEW.quantidade, disponivel;
   END IF;
 
   RETURN NEW;
@@ -205,10 +185,11 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION verificar_tipos_publicacao_match()
 RETURNS TRIGGER AS $$
 DECLARE
-  tipo_publicacao_ref tipo_publicacao;
+  tipo_publicacao_ref_id INTEGER;
+  tipo_publicacao_nome VARCHAR(20);
 BEGIN
   IF NEW.oferta_id IS NOT NULL THEN
-    SELECT tipo INTO tipo_publicacao_ref
+    SELECT tipo_id INTO tipo_publicacao_ref_id
     FROM publicacoes
     WHERE id = NEW.oferta_id;
 
@@ -216,13 +197,14 @@ BEGIN
       RAISE EXCEPTION 'Publicação de oferta com ID % não encontrada.', NEW.oferta_id;
     END IF;
 
-    IF tipo_publicacao_ref != 'OFERTA' THEN
-      RAISE EXCEPTION 'A publicação referenciada por oferta_id (%) deve ser do tipo ''OFERTA'', mas é do tipo ''%''.', NEW.oferta_id, tipo_publicacao_ref;
+    SELECT nome INTO tipo_publicacao_nome FROM tipo_publicacao WHERE id = tipo_publicacao_ref_id;
+    IF tipo_publicacao_nome != 'OFERTA' THEN
+      RAISE EXCEPTION 'A publicação referenciada por oferta_id (%) deve ser do tipo ''OFERTA'', mas é do tipo ''%''.', NEW.oferta_id, tipo_publicacao_nome;
     END IF;
   END IF;
 
   IF NEW.pedido_id IS NOT NULL THEN
-    SELECT tipo INTO tipo_publicacao_ref
+    SELECT tipo_id INTO tipo_publicacao_ref_id
     FROM publicacoes
     WHERE id = NEW.pedido_id;
 
@@ -230,8 +212,9 @@ BEGIN
       RAISE EXCEPTION 'Publicação de pedido com ID % não encontrada.', NEW.pedido_id;
     END IF;
 
-    IF tipo_publicacao_ref != 'PEDIDO' THEN
-      RAISE EXCEPTION 'A publicação referenciada por pedido_id (%) deve ser do tipo ''PEDIDO'', mas é do tipo ''%''.', NEW.pedido_id, tipo_publicacao_ref;
+    SELECT nome INTO tipo_publicacao_nome FROM tipo_publicacao WHERE id = tipo_publicacao_ref_id;
+    IF tipo_publicacao_nome != 'PEDIDO' THEN
+      RAISE EXCEPTION 'A publicação referenciada por pedido_id (%) deve ser do tipo ''PEDIDO'', mas é do tipo ''%''.', NEW.pedido_id, tipo_publicacao_nome;
     END IF;
   END IF;
 
@@ -248,27 +231,40 @@ CREATE TRIGGER trg_publicacoes_atualizado
 BEFORE UPDATE ON publicacoes
 FOR EACH ROW EXECUTE PROCEDURE atualizar_data();
 
+-- Atualização de timestamps
 CREATE TRIGGER trg_matches_atualizado
 BEFORE UPDATE ON matches
 FOR EACH ROW EXECUTE PROCEDURE atualizar_data();
 
--- Se a tabela mensagens tiver um campo atualizado_em, descomente o trigger abaixo:
--- CREATE TRIGGER trg_mensagens_atualizado
--- BEFORE UPDATE ON mensagens
--- FOR EACH ROW EXECUTE PROCEDURE atualizar_data();
-
-CREATE TRIGGER trg_publicacoes_status
-BEFORE INSERT OR UPDATE OF quantidade, fim_coleta ON publicacoes
-FOR EACH ROW EXECUTE PROCEDURE verificar_status_publicacao();
-
+-- Controle de quantidade
 CREATE TRIGGER trg_matches_quantidade
-AFTER INSERT OR UPDATE OF status, quantidade ON matches
+AFTER INSERT OR UPDATE OF status_id, quantidade ON matches
 FOR EACH ROW EXECUTE PROCEDURE atualizar_quantidades();
 
+-- Validação de quantidade
 CREATE TRIGGER trg_validar_match_quantidade
-BEFORE INSERT OR UPDATE OF quantidade, oferta_id, pedido_id ON matches
+BEFORE INSERT OR UPDATE OF quantidade, publicacao_id ON matches
 FOR EACH ROW EXECUTE PROCEDURE validar_quantidade_match();
 
-CREATE TRIGGER trg_verificar_tipos_publicacao_no_match
-BEFORE INSERT OR UPDATE OF oferta_id, pedido_id ON matches
-FOR EACH ROW EXECUTE FUNCTION verificar_tipos_publicacao_match();
+-- Validação do tipo da publicação
+CREATE TRIGGER trg_verificar_tipo_publicacao_no_match
+BEFORE INSERT OR UPDATE OF publicacao_id ON matches
+FOR EACH ROW EXECUTE FUNCTION verificar_tipo_publicacao_match();
+
+CREATE OR REPLACE FUNCTION verificar_tipo_publicacao_match()
+RETURNS TRIGGER AS $$
+DECLARE
+  tipo_publicacao_nome VARCHAR(20);
+BEGIN
+  SELECT tp.nome INTO tipo_publicacao_nome
+  FROM publicacoes p
+  JOIN tipo_publicacao tp ON tp.id = p.tipo_id
+  WHERE p.id = NEW.publicacao_id;
+
+  IF tipo_publicacao_nome NOT IN ('OFERTA', 'PEDIDO') THEN
+    RAISE EXCEPTION 'A publicação referenciada por publicacao_id (%) deve ser do tipo OFERTA ou PEDIDO, mas é do tipo %.', NEW.publicacao_id, tipo_publicacao_nome;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;

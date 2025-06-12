@@ -144,6 +144,32 @@ export default function BarraNavegacao() {
                   </span>
                 </a>
               </li>
+
+              <li>
+                <a
+                  href="/app/conexoes"
+                  className="group relative flex justify-center rounded-sm px-2 py-1.5 text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+                >
+                  {/* ícone de conexão */}
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="size-5 opacity-75"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+                    />
+                  </svg>
+                  <span className="invisible absolute start-full top-1/2 ms-4 -translate-y-1/2 rounded-sm bg-gray-900 px-2 py-1.5 text-xs font-medium text-white group-hover:visible">
+                    Conexões
+                  </span>
+                </a>
+              </li>
             </ul>
           </div>
         </div>

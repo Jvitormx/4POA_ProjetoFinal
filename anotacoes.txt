@@ -242,3 +242,25 @@ Interface básica de mensagens
 Notificações em tempo real
 
 Configuracoes de segurança Spring Security + JWT, Exception Handler Global podem ser deixadas por ultimo
+
+
+/////////
+
+@Service
+public class AuthService {
+    private final UsuarioRepository usuarioRepository;
+    private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
+
+    public AuthService(UsuarioRepository usuarioRepository) {
+        this.usuarioRepository = usuarioRepository;
+    }
+
+    public Usuario login(LoginDto dto) {
+        Usuario usuario = usuarioRepository.findByEmail(dto.getEmail())
+            .orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado"));
+        if (!encoder.matches(dto.getSenha(), usuario.getHashSenha())) {
+            throw new IllegalArgumentException("Senha inválida");
+        }
+        return usuario;
+    }
+}

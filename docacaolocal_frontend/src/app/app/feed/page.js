@@ -4,6 +4,7 @@ import ScoreCard from "../../components/ScoreCard";
 import FeedFiltro from "../../components/FeedFiltro";
 import FeedHeader from "../../components/FeedHeader";
 import ListaPublicacao from "../../components/ListaPublicacao";
+import { fetchApi } from "@/service/api";
 
 export default function Feed() {
   const [usuario, setUsuario] = useState(null);
@@ -16,10 +17,9 @@ export default function Feed() {
       const user = JSON.parse(userStr);
       setUsuario(user);
 
-      // Exemplo de fetch do feed (ajuste endpoint conforme backend)
-      fetch(`/api/publicacoes/feed?usuarioId=${user.id}&tipo=${tipo}`)
-        .then((res) => res.json())
-        .then(setPublicacoes);
+      fetchApi(`/api/publicacoes/feed?usuarioId=${user.id}&tipo=${tipo}`)
+        .then(setPublicacoes)
+        .catch(console.error);
     }
   }, [tipo]);
 

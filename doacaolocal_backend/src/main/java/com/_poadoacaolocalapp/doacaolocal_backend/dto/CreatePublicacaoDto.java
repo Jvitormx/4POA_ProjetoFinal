@@ -2,17 +2,15 @@ package com._poadoacaolocalapp.doacaolocal_backend.dto;
 
 import java.time.Instant;
 
-import com._poadoacaolocalapp.doacaolocal_backend.entity.enums.TipoPublicacao;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
-
 
 public class CreatePublicacaoDto {
 
     @NotNull
-    private TipoPublicacao tipo;
+    private String tipo; // Agora recebe o nome do tipo ("OFERTA" ou "PEDIDO")
 
     @NotBlank
     @Size(max = 150)
@@ -44,11 +42,11 @@ public class CreatePublicacaoDto {
 
     // Getters e setters
 
-    public TipoPublicacao getTipo() {
+    public String getTipo() {
         return tipo;
     }
 
-    public void setTipo(TipoPublicacao tipo) {
+    public void setTipo(String tipo) {
         this.tipo = tipo;
     }
 
@@ -106,5 +104,37 @@ public class CreatePublicacaoDto {
 
     public void setUrgente(Boolean urgente) {
         this.urgente = urgente;
+    }
+
+    public Double getLatitude() {
+        return latitude;
+    }
+
+    public void setLatitude(Double latitude) {
+        this.latitude = latitude;
+    }
+
+    public Double getLongitude() {
+        return longitude;
+    }
+
+    public void setLongitude(Double longitude) {
+        this.longitude = longitude;
+    }
+
+    public Instant getInicioColeta() {
+        return inicioColeta;
+    }
+
+    public void setInicioColeta(Instant inicioColeta) {
+        this.inicioColeta = inicioColeta;
+    }
+
+    public Instant getFimColeta() {
+        return fimColeta;
+    }
+
+    public void setFimColeta(Instant fimColeta) {
+        this.fimColeta = fimColeta;
     }
 }

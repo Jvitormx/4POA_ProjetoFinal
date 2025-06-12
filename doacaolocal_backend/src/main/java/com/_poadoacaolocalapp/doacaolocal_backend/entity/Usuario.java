@@ -63,4 +63,10 @@ public class Usuario {
     @Builder.Default
     @Column(name = "atualizado_em", nullable = false)
     private ZonedDateTime atualizadoEm = ZonedDateTime.now();
+
+    @Column(name = "foto_perfil_url", length = 255)
+    private String fotoPerfilUrl;
+
+    @Column(columnDefinition = "TEXT")
+    private String descricao;
 }
